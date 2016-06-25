@@ -57,14 +57,17 @@ def main(args):
   while True:
     # 1. look for boundary-line
     logging.debug("looking for boundary-line")
+    preboundary_size = 0
     while True:
       line = req.raw.readline()
       if line.startswith(boundary) or line.startswith("--" + boundary):
-        logging.debug("found boundary-line after %u bytes", framesize)
+        logging.debug("found boundary-line after %u bytes", preboundary_size)
         break
 
-      # 1a. add over-read number of bytes to framesize
-      framesize += len(line)
+      preboundary_size += len(line)
+
+    # 1a. add over-read number of bytes to framesize
+    framesize += preboundary_size
 
     # 2. record timing & size-information (if this is not the first boundary)
     if framesize > 0:
