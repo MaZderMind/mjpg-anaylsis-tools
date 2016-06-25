@@ -18,7 +18,7 @@ def main(args):
 
   paramstrs = ctype.split(";")[1:]
   parampairs = [s.split("=", 1) for s in paramstrs]
-  params = {k: v for k,v in parampairs}
+  params = {k.strip().lower(): v.strip().lower() for k,v in parampairs}
   logging.debug("parsed content-type params: %s", params);
 
   if not "boundary" in params:
@@ -59,7 +59,7 @@ def main(args):
     logging.debug("looking for boundary-line")
     while True:
       line = req.raw.readline()
-      if line.startswith("--" + boundary):
+      if line.startswith(boundary) or line.startswith("--" + boundary):
         logging.debug("found boundary-line after %u bytes", framesize)
         break
 
