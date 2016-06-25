@@ -1,6 +1,6 @@
 <?php
 
-$fps = 5;
+$fps = 25;
 $boundary = "3cd47a181ec2129228c1e8784cd97e7a2473a5de";
 header("Content-Type: multipart/x-mixed-replace;boundary=$boundary;lala=baba");
 header("Cache-Control: no-cache");
@@ -24,5 +24,6 @@ while(true)
 	flush();
 
 	$which = !$which;
-	usleep(1/$fps * 1000000);
+	$jitter = mt_rand(500, 1500) / 1000;
+	usleep(1/$fps * 1000000 * $jitter);
 }
