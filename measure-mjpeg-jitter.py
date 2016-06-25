@@ -43,6 +43,8 @@ def main(args):
   # sum of the duration in (mili?)seconds of frames seen
   framegap_sum = 0
 
+  jitter_sum = 0
+
   # durations in (mili?)seconds of frames seen
   framegaps = []
 
@@ -54,87 +56,96 @@ def main(args):
   prevframe_stamp = time.time()
 
 
-  while True:
-    # 1. look for boundary-line
-    logging.debug("looking for boundary-line")
-    preboundary_size = 0
+  try:
     while True:
-      line = req.raw.readline()
-      if line.startswith(boundary) or line.startswith("--" + boundary):
-        logging.debug("found boundary-line after %u bytes", preboundary_size)
-        break
+      # 1. look for boundary-line
+      logging.debug("looking for boundary-line")
+      preboundary_size = 0
+      while True:
+        line = req.raw.readline()
+        if line.startswith(boundary) or line.startswith("--" + boundary):
+          logging.debug("found boundary-line after %u bytes", preboundary_size)
+          break
 
-      preboundary_size += len(line)
+        preboundary_size += len(line)
 
-    # 1a. add over-read number of bytes to framesize
-    framesize += preboundary_size
+      # 1a. add over-read number of bytes to framesize
+      framesize += preboundary_size
 
-    # 2. record timing & size-information (if this is not the first boundary)
-    if framesize > 0:
-      framecount += 1
-      framesize_sum += framesize
+      # 2. record timing & size-information (if this is not the first boundary)
+      if framesize > 0:
+        framecount += 1
+        framesize_sum += framesize
 
-      framegap = time.time() - prevframe_stamp
-      framegap_sum += framegap
-      framegaps.append(framegap)
+        framegap = time.time() - prevframe_stamp
+        framegap_sum += framegap
+        framegaps.append(framegap)
 
-      print_report(framecount, framesize_sum, framegap, framegap_sum, framegaps)
+        # statistics of interests:
+        #  - avg. framerate,
+        #  - current frame jitter
+        #  - avg. jitter
+        #  - framerate last n frames
+        #  - jitter last n frames
+        # 1. calculate avg. framerate across all seen frames
+        # 2. calculate jitter of current frame
+        #
+        avg_framerate = 1/(framegap_sum/framecount)
+        jitter = framegap - (framegap_sum/framecount)
+        jitter_sum += abs(jitter)
+        jitterpct = jitter / (framegap_sum/framecount) * 100
 
-      prevframe_stamp = time.time()
-      framesize = 0
+        print("framerate averages to %.2f, frame #%u jitters by %.4fs (%.1f%%)" %
+          (avg_framerate, framecount, jitter, jitterpct))
 
-    # 3. read frame-headers
-    frameheaders = {}
-    while True:
-      line = req.raw.readline().rstrip()
-      if len(line) == 0:
-        # empty line = enf of header
-        break
+        prevframe_stamp = time.time()
+        framesize = 0
 
-      k, v = [s.strip().lower() for s in line.split(":", 1)]
-      frameheaders[k] = v
+      # 3. read frame-headers
+      frameheaders = {}
+      while True:
+        line = req.raw.readline().rstrip()
+        if len(line) == 0:
+          # empty line = enf of header
+          break
 
-    logging.debug("received frame-headers: %s", frameheaders);
+        k, v = [s.strip().lower() for s in line.split(":", 1)]
+        frameheaders[k] = v
 
-    # 4. fail if no length or type is provided or type is wrong
-    if not "content-type" in frameheaders:
-      logging.warning("no frame content-type provided")
+      logging.debug("received frame-headers: %s", frameheaders);
 
-    if frameheaders["content-type"] != "image/jpeg":
-      logging.warning("frame content-type is %s, not 'image/jpeg'", frameheaders["content-type"])
+      # 4. fail if no length or type is provided or type is wrong
+      if not "content-type" in frameheaders:
+        logging.warning("no frame content-type provided")
 
-    if not "content-length" in frameheaders:
-      logging.error("no frame content-length provided")
-      return False
+      if frameheaders["content-type"] != "image/jpeg":
+        logging.warning("frame content-type is %s, not 'image/jpeg'", frameheaders["content-type"])
 
-    length = int(frameheaders["content-length"])
-    if length < 1:
-      logging.warning("invalid frame content-length %d provided", length)
-      continue
+      if not "content-length" in frameheaders:
+        logging.error("no frame content-length provided")
+        return False
 
-    # 4a. read that amount of bytes
-    framedata = req.raw.read(length)
+      length = int(frameheaders["content-length"])
+      if length < 1:
+        logging.warning("invalid frame content-length %d provided", length)
+        continue
 
-    # 4b. record read length as frame-size
-    logging.debug("read %u bytes of frame-data", len(framedata))
-    framesize += len(framedata)
+      # 4a. read that amount of bytes
+      framedata = req.raw.read(length)
 
+      # 4b. record read length as frame-size
+      logging.debug("read %u bytes of frame-data", len(framedata))
+      framesize += len(framedata)
+  except (KeyboardInterrupt, SystemExit):
+    avg_framerate = 1/(framegap_sum/framecount)
+    avg_jitter = jitter_sum/framecount
+    avg_jitterpct = avg_jitter / (framegap_sum/framecount) * 100
 
-def print_report(framecount, framesize_sum, framegap, framegap_sum, framegaps):
-  # statistics of interests:
-  #  - avg. framerate,
-  #  - current frame jitter
-  #  - avg. jitter
-  #  - framerate last n frames
-  #  - jitter last n frames
-  # 1. calculate avg. framerate across all seen frames
-  # 2. calculate jitter of current frame
-  #
-  avg_framerate = 1/(framegap_sum/framecount)
-  jitter = framegap - (framegap_sum/framecount)
-  jitterpct = jitter / (framegap_sum/framecount) * 100
-  print("framerate averages to %.2f, frame #%u jitters by %.4fs (%.1f%%)" %
-    (avg_framerate, framecount, jitter, jitterpct))
+    print("")
+    print("final report:")
+    print("  avg framerate was %.2f, avg. absolute jitters was %.4fs (%.1f%%)" %
+      (avg_framerate, avg_jitter, avg_jitterpct))
+
 
 
 
