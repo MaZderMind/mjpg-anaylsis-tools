@@ -78,8 +78,7 @@ def main(args):
       framegap_sum += framegap
       framegaps.append(framegap)
 
-      # TODO: replace with better statistics function
-      logging.info("frame of %u bytes after %fs", framesize, framegap)
+      print_report(framecount, framesize_sum, framegap, framegap_sum, framegaps)
 
       prevframe_stamp = time.time()
       framesize = 0
@@ -120,6 +119,22 @@ def main(args):
     logging.debug("read %u bytes of frame-data", len(framedata))
     framesize += len(framedata)
 
+
+def print_report(framecount, framesize_sum, framegap, framegap_sum, framegaps):
+  # statistics of interests:
+  #  - avg. framerate,
+  #  - current frame jitter
+  #  - avg. jitter
+  #  - framerate last n frames
+  #  - jitter last n frames
+  # 1. calculate avg. framerate across all seen frames
+  # 2. calculate jitter of current frame
+  #
+  avg_framerate = 1/(framegap_sum/framecount)
+  jitter = framegap - (framegap_sum/framecount)
+  jitterpct = jitter / (framegap_sum/framecount) * 100
+  print("framerate averages to %.2f, frame #%u jitters by %.4fs (%.1f%%)" %
+    (avg_framerate, framecount, jitter, jitterpct))
 
 
 
