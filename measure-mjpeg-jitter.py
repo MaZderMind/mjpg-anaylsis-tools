@@ -146,17 +146,28 @@ def main(args):
     print("  avg framerate was %.2f, avg. absolute jitters was %.4fs (%.1f%%)" %
       (avg_framerate, avg_jitter, avg_jitterpct))
 
+    if args.timing_file:
+      logging.info("writing frame-times to %s", args.timing_file)
+      with open(args.timing_file, "w") as f:
+        for framegap in framegaps:
+          f.write("%.10f\n" % framegap)
+      logging.info("wrote %u lines", len(framegaps))
+
 
 
 
 # setup commandline tool
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(
-    description = "Measure fps and jitter of an MJPEG-Stream")
+    description="Measure fps and jitter of an MJPEG-Stream")
 
   parser.add_argument("url",
-    help = "Thw http(s) url to read the mjpeg-stream from",
-    metavar = "ARG")
+    help="the http(s) url to read the mjpeg-stream from",
+    metavar="ARG")
+
+  parser.add_argument("-t", "--timing-file",
+    help="save timings in a file which can be used to replay the mjpeg-stream",
+    metavar="FILE")
 
   parser.add_argument("-v", "--verbose",
     help="increase output verbosity",
